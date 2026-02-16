@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Dashboard</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      margin: 0;
+      padding: 40px;
+    }
+    .dashboard {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: #888;
+      margin-bottom: 32px;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+    .card {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 24px;
+    }
+    .card h3 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .card .value {
+      font-size: 36px;
+      font-weight: 700;
+    }
+    .status-bar {
+      margin-top: 32px;
+      background: #16213e;
+      border-radius: 8px;
+      padding: 20px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      background: #4ade80;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <h1>Agent Coordination Dashboard</h1>
+    <p class="subtitle">Dot + Claude Code | Autonomous Pipeline</p>
+    <div class="cards">
+      <div class="card">
+        <h3>Tasks</h3>
+        <div class="value">12</div>
+      </div>
+      <div class="card">
+        <h3>Agents</h3>
+        <div class="value">3</div>
+      </div>
+      <div class="card">
+        <h3>Uptime</h3>
+        <div class="value">99%</div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span><span class="status-dot"></span> All systems operational</span>
+      <span style="color: #888;">Last sync: just now</span>
+    </div>
+  </div>
+</body>
+</html>
