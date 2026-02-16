@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simply Solar - Operations Dashboard</title>
+    <style>
+        /* ============================================
+           CSS CUSTOM PROPERTIES - DESIGN SYSTEM
+           ============================================ */
+        :root {
+            --color-bg-primary: #0a0a0b;
+            --color-bg-secondary: #121214;
+            --color-bg-tertiary: #1a1a1d;
+            --color-bg-elevated: #222225;
+            --color-solar-orange: #ff8c42;
+            --color-solar-amber: #ffb347;
+            --color-solar-yellow: #ffd966;
+            --color-solar-green: #4ade80;
+            --color-solar-teal: #2dd4bf;
+            --color-success: #22c55e;
+            --color-warning: #f59e0b;
+            --color-error: #ef4444;
+            --color-info: #3b82f6;
+            --color-text-primary: #f8f9fa;
+            --color-text-secondary: #a0a0a8;
+            --color-text-tertiary: #6b6b73;
+            --color-text-muted: #505058;
+            --color-border-subtle: rgba(255, 255, 255, 0.06);
+            --color-border-default: rgba(255, 255, 255, 0.1);
+            --color-border-strong: rgba(255, 255, 255, 0.15);
+            --glass-bg: rgba(26, 26, 29, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+            --shadow-glow-orange: 0 0 20px rgba(255, 140, 66, 0.3);
+            --shadow-glow-green: 0 0 20px rgba(74, 222, 128, 0.3);
+            --space-xs: 0.25rem;
+            --space-sm: 0.5rem;
+            --space-md: 1rem;
+            --space-lg: 1.5rem;
+            --space-xl: 2rem;
+            --space-2xl: 3rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --radius-full: 9999px;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'SF Mono', Monaco, 'Fira Code', monospace;
+            --sidebar-width: 260px;
+            --header-height: 70px;
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { font-size: 15px; -webkit-font-smoothing: antialiased; }
+        body {
+            font-family: var(--font-sans);
+            background: var(--color-bg-primary);
+            color: var(--color-text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           KEYFRAME ANIMATIONS
+           ============================================ */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 8px rgba(255, 140, 66, 0.4); }
+            50% { box-shadow: 0 0 20px rgba(255, 140, 66, 0.7); }
+        }
+        @keyframes pulseDot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.4); }
+        }
+        @keyframes progressFill {
+            from { width: 0%; }
+            to { width: var(--progress-width, 0%); }
+        }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        @keyframes shimmer {
+            0% { background-position: -600px 0; }
+            100% { background-position: 600px 0; }
+        }
+        @keyframes countUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes barGrow {
+            from { transform: scaleY(0); }
+            to { transform: scaleY(1); }
+        }
+
+        /* ============================================
+           LAYOUT
+           ============================================ */
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: var(--sidebar-width) 1fr;
+            grid-template-rows: var(--header-height) 1fr;
+            grid-template-areas: "sidebar header" "sidebar main";
+            min-height: 100vh;
+        }
+
+        /* ============================================
+           SIDEBAR
+           ============================================ */
+        .sidebar {
+            grid-area: sidebar;
+            background: linear-gradient(180deg, #101012 0%, var(--color-bg-tertiary) 100%);
+            border-right: 1px solid var(--color-border-default);
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            z-index: 100;
+            animation: slideInLeft 0.4s ease-out;
+        }
+        .sidebar-logo {
+            padding: var(--space-xl) var(--space-lg);
+            border-bottom: 1px solid var(--color-border-subtle);
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+        }
+        .sidebar-logo-icon {
+            width: 42px; height: 42px;
+            background: linear-gradient(135deg, var(--color-solar-orange), var(--color-solar-amber));
+            border-radius: var(--radius-lg);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem;
+            animation: pulseGlow 3s infinite;
+        }
+        .sidebar-logo h1 {
+            font-size: 1.15rem; font-weight: 700;
+            background: linear-gradient(135deg, var(--color-solar-orange), var(--color-solar-amber));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .sidebar-logo span { font-size: 0.7rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+        .sidebar-nav { flex: 1; padding: var(--space-lg) 0; overflow-y: auto; }
+        .nav-section { padding: 0 var(--space-md); margin-bottom: var(--space-lg); }
+        .nav-section-title {
+            font-size: 0.65rem; font-weight: 700; color: var(--color-text-muted);
+            text-transform: uppercase; letter-spacing: 0.12em;
+            padding: var(--space-sm) var(--space-sm); margin-bottom: var(--space-xs);
+        }
+        .nav-list { list-style: none; }
+        .nav-link {
+            display: flex; align-items: center; gap: var(--space-sm);
+            padding: 0.55rem 0.75rem; color: var(--color-text-secondary);
+            text-decoration: none; border-radius: var(--radius-md);
+            transition: all var(--transition-fast); font-size: 0.875rem; font-weight: 500;
+            margin-bottom: 2px; position: relative;
+        }
+        .nav-link::before {
+            content: ''; position: absolute; left: 0; top: 0;
+            width: 3px; height: 100%; background: var(--color-solar-orange);
+            border-radius: 0 2px 2px 0;
+            transform: scaleY(0); transition: transform var(--transition-fast);
+        }
+        .nav-link:hover { background: var(--color-bg-elevated); color: var(--color-text-primary); }
+        .nav-link.active { background: var(--color-bg-elevated); color: var(--color-text-primary); }
+        .nav-link.active::before { transform: scaleY(1); }
+        .nav-icon { width: 18px; text-align: center; font-size: 0.95rem; }
+        .nav-badge {
+            margin-left: auto; background: var(--color-solar-orange); color: var(--color-bg-primary);
+            font-size: 0.65rem; font-weight: 700; padding: 1px 7px; border-radius: var(--radius-full);
+        }
+        .sidebar-footer {
+            padding: var(--space-md) var(--space-lg);
+            border-top: 1px solid var(--color-border-subtle);
+            display: flex; align-items: center; gap: var(--space-sm);
+        }
+        .sidebar-footer-avatar {
+            width: 32px; height: 32px; border-radius: var(--radius-full);
+            background: linear-gradient(135deg, var(--color-solar-teal), var(--color-solar-green));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.75rem; font-weight: 700; color: var(--color-bg-primary);
+        }
+        .sidebar-footer-name { font-size: 0.8rem; font-weight: 600; color: var(--color-text-primary); }
+        .sidebar-footer-role { font-size: 0.65rem; color: var(--color-text-muted); }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        .header {
+            grid-area: header;
+            background: linear-gradient(135deg, var(--color-bg-secondary) 0%, rgba(255,140,66,0.03) 50%, var(--color-bg-secondary) 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 8s ease infinite;
+            border-bottom: 1px solid var(--color-border-default);
+            padding: 0 var(--space-2xl);
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 90;
+            backdrop-filter: blur(12px);
+        }
+        .header-title { animation: fadeInUp 0.5s ease-out; }
+        .header-title h2 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+        .header-subtitle { font-size: 0.8rem; color: var(--color-text-tertiary); display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+        .header-actions { display: flex; align-items: center; gap: var(--space-md); }
+        .header-search { position: relative; }
+        .header-search input {
+            background: var(--color-bg-elevated); border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-full); padding: 0.4rem 1rem 0.4rem 2.2rem;
+            color: var(--color-text-primary); font-size: 0.8rem; width: 240px;
+            transition: all var(--transition-fast); font-family: var(--font-sans);
+        }
+        .header-search input::placeholder { color: var(--color-text-muted); }
+        .header-search input:focus { outline: none; border-color: var(--color-solar-orange); box-shadow: 0 0 0 3px rgba(255,140,66,0.1); width: 300px; }
+        .header-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); font-size: 0.8rem; }
+        .header-btn {
+            background: var(--color-bg-elevated); border: 1px solid var(--color-border-default);
+            border-radius: var(--radius-md); padding: 0.4rem 0.8rem; color: var(--color-text-secondary);
+            cursor: pointer; transition: all var(--transition-fast); font-size: 0.8rem; font-weight: 500;
+            display: flex; align-items: center; gap: 4px; font-family: var(--font-sans);
+        }
+        .header-btn:hover { background: var(--color-bg-tertiary); color: var(--color-text-primary); }
+        .header-btn.primary {
+            background: linear-gradient(135deg, var(--color-solar-orange), var(--color-solar-amber));
+            border: none; color: var(--color-bg-primary); font-weight: 700;
+        }
+        .header-btn.primary:hover { transform: translateY(-1px); box-shadow: var(--shadow-glow-orange); }
+        .notification-dot {
+            position: relative;
+        }
+        .notification-dot::after {
+            content: ''; position: absolute; top: 4px; right: 6px; width: 7px; height: 7px;
+            background: var(--color-error); border-radius: 50%; border: 2px solid var(--color-bg-elevated);
+        }
+
+        /* ============================================
+           MAIN CONTENT
+           ============================================ */
+        .main-content {
+            grid-area: main;
+            padding: var(--space-xl) var(--space-2xl);
+            overflow-y: auto;
+            max-height: calc(100vh - var(--header-height));
+        }
+
+        /* ============================================
+           KPI STATS
+           ============================================ */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-lg);
+            margin-bottom: var(--space-xl);
+        }
+        .stat-card {
+            background: var(--glass-bg); backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
+            padding: var(--space-lg); position: relative; overflow: hidden;
+            transition: all var(--transition-base);
+            animation: fadeInUp 0.6s ease-out both;
+        }
+        .stat-card:nth-child(1) { animation-delay: 0.05s; }
+        .stat-card:nth-child(2) { animation-delay: 0.1s; }
+        .stat-card:nth-child(3) { animation-delay: 0.15s; }
+        .stat-card:nth-child(4) { animation-delay: 0.2s; }
+        .stat-card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+            background: var(--stat-color);
+            transform: scaleX(0); transform-origin: left;
+            transition: transform var(--transition-slow);
+        }
+        .stat-card:hover::before { transform: scaleX(1); }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: var(--glass-shadow); border-color: var(--color-border-strong); }
+        .stat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-sm); }
+        .stat-label { font-size: 0.8rem; color: var(--color-text-secondary); font-weight: 500; }
+        .stat-icon {
+            width: 36px; height: 36px; border-radius: var(--radius-md);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; background: var(--stat-icon-bg);
+        }
+        .stat-value {
+            font-size: 1.85rem; font-weight: 800; color: var(--color-text-primary);
+            letter-spacing: -0.03em; margin-bottom: 2px;
+            animation: countUp 0.8s ease-out both;
+        }
+        .stat-change { display: flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; }
+        .stat-change.positive { color: var(--color-success); }
+        .stat-change.negative { color: var(--color-error); }
+        .stat-card.orange { --stat-color: var(--color-solar-orange); --stat-icon-bg: rgba(255,140,66,0.12); }
+        .stat-card.green { --stat-color: var(--color-solar-green); --stat-icon-bg: rgba(74,222,128,0.12); }
+        .stat-card.blue { --stat-color: var(--color-info); --stat-icon-bg: rgba(59,130,246,0.12); }
+        .stat-card.amber { --stat-color: var(--color-solar-amber); --stat-icon-bg: rgba(255,179,71,0.12); }
+
+        /* ============================================
+           CARDS
+           ============================================ */
+        .card {
+            background: var(--glass-bg); backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
+            padding: var(--space-xl); transition: all var(--transition-base);
+            animation: fadeInUp 0.6s ease-out both;
+        }
+        .card:hover { border-color: var(--color-border-default); }
+        .card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: var(--space-lg); padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--color-border-subtle);
+        }
+        .card-title { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .card-title-icon { color: var(--color-solar-orange); }
+        .card-actions { display: flex; gap: 6px; }
+        .card-action-btn {
+            background: transparent; border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-md); padding: 3px 10px; color: var(--color-text-tertiary);
+            cursor: pointer; transition: all var(--transition-fast); font-size: 0.75rem; font-family: var(--font-sans);
+        }
+        .card-action-btn:hover { background: var(--color-bg-elevated); color: var(--color-text-primary); border-color: var(--color-border-default); }
+
+        /* ============================================
+           PIPELINE
+           ============================================ */
+        .pipeline-container { display: flex; flex-direction: column; gap: 10px; }
+        .pipeline-stage { display: grid; grid-template-columns: 160px 40px 1fr; align-items: center; gap: var(--space-md); }
+        .pipeline-stage-label { font-size: 0.8rem; font-weight: 600; color: var(--color-text-secondary); white-space: nowrap; text-align: right; }
+        .pipeline-stage-count { font-size: 1rem; font-weight: 800; color: var(--color-text-primary); text-align: center; font-variant-numeric: tabular-nums; }
+        .pipeline-bar-container { position: relative; height: 32px; background: var(--color-bg-elevated); border-radius: var(--radius-sm); overflow: hidden; }
+        .pipeline-bar {
+            height: 100%; border-radius: var(--radius-sm);
+            display: flex; align-items: center; padding: 0 var(--space-md);
+            font-weight: 600; font-size: 0.75rem; color: rgba(0,0,0,0.7);
+            position: relative; overflow: hidden;
+            width: 0;
+            animation: progressFill 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        .pipeline-bar::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            animation: shimmer 2.5s infinite;
+        }
+        .pipeline-stage:nth-child(1) .pipeline-bar { animation-delay: 0.1s; }
+        .pipeline-stage:nth-child(2) .pipeline-bar { animation-delay: 0.15s; }
+        .pipeline-stage:nth-child(3) .pipeline-bar { animation-delay: 0.2s; }
+        .pipeline-stage:nth-child(4) .pipeline-bar { animation-delay: 0.25s; }
+        .pipeline-stage:nth-child(5) .pipeline-bar { animation-delay: 0.3s; }
+        .pipeline-stage:nth-child(6) .pipeline-bar { animation-delay: 0.35s; }
+        .pipeline-stage:nth-child(7) .pipeline-bar { animation-delay: 0.4s; }
+        .pipeline-stage:nth-child(8) .pipeline-bar { animation-delay: 0.45s; }
+        .pipeline-stage:nth-child(9) .pipeline-bar { animation-delay: 0.5s; }
+        .pipeline-stage:nth-child(10) .pipeline-bar { animation-delay: 0.55s; }
+
+        /* ============================================
+           GRID LAYOUTS
+           ============================================ */
+        .grid-2col { display: grid; grid-template-columns: 1.6fr 1fr; gap: var(--space-lg); margin-bottom: var(--space-lg); }
+        .grid-full { display: grid; grid-template-columns: 1fr; gap: var(--space-lg); margin-bottom: var(--space-lg); }
+
+        /* ============================================
+           PROJECT TABLE
+           ============================================ */
+        .table-container { overflow-x: auto; }
+        .project-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .project-table thead { background: var(--color-bg-elevated); }
+        .project-table th {
+            padding: 10px var(--space-md); text-align: left; font-size: 0.7rem; font-weight: 700;
+            color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em;
+            border-bottom: 1px solid var(--color-border-default); white-space: nowrap;
+        }
+        .project-table th:first-child { border-top-left-radius: var(--radius-md); }
+        .project-table th:last-child { border-top-right-radius: var(--radius-md); }
+        .project-table tbody tr { transition: background var(--transition-fast); border-bottom: 1px solid var(--color-border-subtle); }
+        .project-table tbody tr:hover { background: rgba(255,140,66,0.03); }
+        .project-table td { padding: 12px var(--space-md); font-size: 0.825rem; vertical-align: middle; }
+        .project-id { font-family: var(--font-mono); color: var(--color-text-tertiary); font-size: 0.75rem; }
+        .customer-name { font-weight: 600; color: var(--color-text-primary); }
+        .customer-address { font-size: 0.7rem; color: var(--color-text-muted); margin-top: 2px; }
+        .system-size { font-family: var(--font-mono); font-size: 0.8rem; color: var(--color-solar-amber); font-weight: 600; }
+
+        /* Status badges */
+        .badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 10px; border-radius: var(--radius-full);
+            font-size: 0.7rem; font-weight: 600; white-space: nowrap;
+        }
+        .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+        .badge.on-track { background: rgba(34,197,94,0.12); color: #4ade80; }
+        .badge.at-risk { background: rgba(245,158,11,0.12); color: #fbbf24; }
+        .badge.delayed { background: rgba(239,68,68,0.12); color: #f87171; }
+        .badge.on-track .dot { animation: pulseDot 2s infinite; }
+
+        .stage-tag {
+            display: inline-block; padding: 2px 8px; border-radius: var(--radius-sm);
+            font-size: 0.7rem; font-weight: 600; white-space: nowrap;
+        }
+
+        /* Progress bar in table */
+        .progress-mini { display: flex; align-items: center; gap: 8px; }
+        .progress-bar-bg {
+            width: 60px; height: 5px; background: var(--color-bg-primary);
+            border-radius: var(--radius-full); overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%; border-radius: var(--radius-full);
+            background: linear-gradient(90deg, var(--color-solar-orange), var(--color-solar-green));
+            transition: width 1s ease-out;
+        }
+        .progress-pct { font-size: 0.7rem; color: var(--color-text-tertiary); font-family: var(--font-mono); min-width: 28px; }
+
+        /* ============================================
+           CREW CARDS
+           ============================================ */
+        .crew-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        .crew-card {
+            background: var(--color-bg-elevated); border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-lg); padding: var(--space-md);
+            transition: all var(--transition-fast); cursor: default;
+        }
+        .crew-card:hover { border-color: var(--color-border-default); transform: translateX(3px); }
+        .crew-card-header { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: 8px; }
+        .crew-card-avatar {
+            width: 36px; height: 36px; border-radius: var(--radius-full);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 700; color: var(--color-bg-primary); flex-shrink: 0;
+        }
+        .crew-card-avatar.active { background: linear-gradient(135deg, var(--color-solar-orange), var(--color-solar-amber)); }
+        .crew-card-avatar.available { background: linear-gradient(135deg, var(--color-solar-teal), var(--color-solar-green)); }
+        .crew-card-avatar.transit { background: linear-gradient(135deg, var(--color-info), #818cf8); }
+        .crew-card-name { font-size: 0.85rem; font-weight: 700; }
+        .crew-card-lead { font-size: 0.7rem; color: var(--color-text-muted); }
+        .crew-status-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; }
+        .crew-status-indicator { display: flex; align-items: center; gap: 4px; }
+        .crew-status-indicator .dot { width: 6px; height: 6px; border-radius: 50%; }
+        .crew-status-indicator .dot.green { background: var(--color-success); animation: pulseDot 2s infinite; }
+        .crew-status-indicator .dot.yellow { background: var(--color-warning); animation: pulseDot 1.5s infinite; }
+        .crew-status-indicator .dot.gray { background: var(--color-text-muted); }
+        .crew-efficiency { font-family: var(--font-mono); font-weight: 700; }
+        .crew-meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--color-text-muted); margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--color-border-subtle); }
+
+        /* ============================================
+           INSPECTIONS
+           ============================================ */
+        .inspections-list { display: flex; flex-direction: column; gap: 10px; }
+        .inspection-item {
+            background: var(--color-bg-elevated); border: 1px solid var(--color-border-subtle);
+            border-left: 3px solid var(--insp-color, var(--color-solar-orange));
+            border-radius: var(--radius-md); padding: var(--space-md);
+            transition: all var(--transition-fast);
+        }
+        .inspection-item:hover { border-color: var(--insp-color, var(--color-solar-orange)); box-shadow: var(--shadow-sm); }
+        .inspection-item.site-survey { --insp-color: var(--color-info); }
+        .inspection-item.rough-inspection { --insp-color: var(--color-solar-orange); }
+        .inspection-item.final-inspection { --insp-color: var(--color-solar-green); }
+        .inspection-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+        .inspection-type { font-size: 0.85rem; font-weight: 700; }
+        .inspection-date-badge {
+            font-size: 0.65rem; font-weight: 700; padding: 2px 8px;
+            border-radius: var(--radius-sm); background: var(--insp-color, var(--color-solar-orange));
+            color: var(--color-bg-primary);
+        }
+        .inspection-detail { font-size: 0.75rem; color: var(--color-text-secondary); }
+        .inspection-address { font-size: 0.7rem; color: var(--color-text-muted); margin-top: 2px; }
+        .inspection-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border-subtle); font-size: 0.7rem; color: var(--color-text-tertiary); }
+        .inspection-status { font-weight: 600; }
+        .inspection-status.scheduled { color: var(--color-solar-amber); }
+        .inspection-status.pending-confirmation { color: var(--color-text-muted); }
+
+        /* ============================================
+           WEEKLY CHART
+           ============================================ */
+        .chart-container { padding-top: var(--space-md); }
+        .chart-legend { display: flex; gap: var(--space-lg); margin-bottom: var(--space-md); flex-wrap: wrap; }
+        .chart-legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--color-text-secondary); }
+        .chart-legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+        .activity-chart { height: 160px; display: flex; align-items: flex-end; gap: 6px; padding: var(--space-md) 0; }
+        .activity-day {
+            flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+        }
+        .activity-bars { display: flex; gap: 3px; align-items: flex-end; height: 120px; width: 100%; }
+        .activity-bar {
+            flex: 1; border-radius: 3px 3px 0 0; position: relative; min-height: 4px;
+            transition: all var(--transition-base); cursor: pointer;
+            transform-origin: bottom; animation: barGrow 0.8s ease-out both;
+        }
+        .activity-bar:hover { opacity: 0.8; transform: scaleY(1.05); }
+        .activity-bar.tasks { background: var(--color-solar-orange); }
+        .activity-bar.leads { background: var(--color-info); }
+        .activity-bar.inspections { background: var(--color-solar-teal); }
+        .activity-bar.installs { background: var(--color-solar-green); }
+        .day-label { font-size: 0.7rem; font-weight: 600; color: var(--color-text-muted); }
+        .day-label.today { color: var(--color-solar-orange); }
+        .activity-bar[data-tooltip]:hover::after {
+            content: attr(data-tooltip); position: absolute; bottom: calc(100% + 6px); left: 50%;
+            transform: translateX(-50%); background: var(--color-bg-primary); color: var(--color-text-primary);
+            padding: 2px 6px; border-radius: var(--radius-sm); font-size: 0.65rem; white-space: nowrap;
+            border: 1px solid var(--color-border-default); z-index: 10;
+        }
+
+        /* ============================================
+           SCROLLBAR
+           ============================================ */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--color-bg-elevated); border-radius: var(--radius-full); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 1200px) {
+            .grid-2col { grid-template-columns: 1fr; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .dashboard-container { grid-template-columns: 1fr; grid-template-areas: "header" "main"; }
+            .sidebar { display: none; }
+            .stats-bar { grid-template-columns: 1fr; }
+            .main-content { padding: var(--space-lg); }
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard-container">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">&#9728;</div>
+            <div>
+                <h1>Simply Solar</h1>
+                <span>Operations Hub</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Main</div>
+                <ul class="nav-list">
+                    <li><a href="#" class="nav-link active"><span class="nav-icon">&#9632;</span> Dashboard</a></li>
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#9723;</span> Projects <span class="nav-badge" id="nav-project-count"></span></a></li>
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#8644;</span> Pipeline</a></li>
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#128197;</span> Schedule</a></li>
+                </ul>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-title">Operations</div>
+                <ul class="nav-list">
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#9881;</span> Crews</a></li>
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#128269;</span> Inspections <span class="nav-badge" id="nav-inspection-count"></span></a></li>
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#128230;</span> Inventory</a></li>
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#128196;</span> Permits</a></li>
+                </ul>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-title">Analytics</div>
+                <ul class="nav-list">
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#128200;</span> Reports</a></li>
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#128176;</span> Revenue</a></li>
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#9889;</span> Performance</a></li>
+                </ul>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-title">System</div>
+                <ul class="nav-list">
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#9881;</span> Settings</a></li>
+                    <li><a href="#" class="nav-link"><span class="nav-icon">&#10067;</span> Help</a></li>
+                </ul>
+            </div>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-avatar">JS</div>
+            <div>
+                <div class="sidebar-footer-name">John Smith</div>
+                <div class="sidebar-footer-role">Operations Manager</div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-title">
+            <h2>Operations Dashboard</h2>
+            <div class="header-subtitle">
+                <span>Bay Area Region</span>
+                <span>&middot;</span>
+                <span id="current-date"></span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <div class="header-search">
+                <span class="header-search-icon">&#128269;</span>
+                <input type="text" placeholder="Search projects, crews...">
+            </div>
+            <button class="header-btn notification-dot">&#128276;</button>
+            <button class="header-btn primary">+ New Project</button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+        <!-- KPIs -->
+        <section class="stats-bar" id="stats-bar"></section>
+
+        <!-- PIPELINE -->
+        <section class="grid-full">
+            <div class="card" style="animation-delay: 0.25s">
+                <div class="card-header">
+                    <h3 class="card-title"><span class="card-title-icon">&#8644;</span> Install Pipeline</h3>
+                    <div class="card-actions">
+                        <button class="card-action-btn">This Month</button>
+                        <button class="card-action-btn">Export</button>
+                    </div>
+                </div>
+                <div class="pipeline-container" id="pipeline-container"></div>
+            </div>
+        </section>
+
+        <!-- PROJECTS + CREW -->
+        <section class="grid-2col">
+            <div class="card" style="animation-delay: 0.3s">
+                <div class="card-header">
+                    <h3 class="card-title"><span class="card-title-icon">&#128203;</span> Active Projects</h3>
+                    <div class="card-actions">
+                        <button class="card-action-btn">Filter</button>
+                        <button class="card-action-btn">View All</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="project-table">
+                        <thead><tr>
+                            <th>Project</th>
+                            <th>Customer</th>
+                            <th>System</th>
+                            <th>Stage</th>
+                            <th>Status</th>
+                            <th>Progress</th>
+                            <th>Est. Complete</th>
+                        </tr></thead>
+                        <tbody id="project-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card" style="animation-delay: 0.35s">
+                <div class="card-header">
+                    <h3 class="card-title"><span class="card-title-icon">&#9881;</span> Field Crews</h3>
+                    <div class="card-actions"><button class="card-action-btn">Dispatch</button></div>
+                </div>
+                <div class="crew-grid" id="crew-grid"></div>
+            </div>
+        </section>
+
+        <!-- INSPECTIONS + WEEKLY -->
+        <section class="grid-2col">
+            <div class="card" style="animation-delay: 0.4s">
+                <div class="card-header">
+                    <h3 class="card-title"><span class="card-title-icon">&#128269;</span> Upcoming Inspections</h3>
+                    <div class="card-actions"><button class="card-action-btn">Schedule New</button></div>
+                </div>
+                <div class="inspections-list" id="inspections-list"></div>
+            </div>
+            <div class="card" style="animation-delay: 0.45s">
+                <div class="card-header">
+                    <h3 class="card-title"><span class="card-title-icon">&#128200;</span> Weekly Activity</h3>
+                    <div class="card-actions"><button class="card-action-btn">This Week</button></div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-legend">
+                        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:var(--color-solar-orange)"></div> Tasks</div>
+                        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:var(--color-info)"></div> Leads</div>
+                        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:var(--color-solar-teal)"></div> Inspections</div>
+                        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:var(--color-solar-green)"></div> Installs</div>
+                    </div>
+                    <div class="activity-chart" id="activity-chart"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script>
+// ============================================
+// DATA
+// ============================================
+
+const PIPELINE_DATA = [
+  { name: 'Sales', count: 47, avgDaysInStage: 12, color: '#f59e0b' },
+  { name: 'Onboarding', count: 34, avgDaysInStage: 8, color: '#f5a00f' },
+  { name: 'Site Inspection', count: 28, avgDaysInStage: 5, color: '#eca815' },
+  { name: 'Design', count: 31, avgDaysInStage: 14, color: '#eab308' },
+  { name: 'Permitting', count: 25, avgDaysInStage: 21, color: '#d9b813' },
+  { name: 'Pre-Install', count: 18, avgDaysInStage: 6, color: '#c4bd1e' },
+  { name: 'Installation', count: 15, avgDaysInStage: 4, color: '#a5c22a' },
+  { name: 'Final Inspection', count: 12, avgDaysInStage: 7, color: '#86c736' },
+  { name: 'NEM/PTO', count: 9, avgDaysInStage: 18, color: '#67cc42' },
+  { name: 'Complete', count: 156, avgDaysInStage: 0, color: '#22c55e' }
+];
+
+const STAGES = ['Sales','Onboarding','Site Inspection','Design','Permitting','Pre-Install','Installation','Final Inspection','NEM/PTO','Complete'];
+const STAGE_PROGRESS = {};
+STAGES.forEach((s, i) => STAGE_PROGRESS[s] = Math.round(((i) / (STAGES.length - 1)) * 100));
+
+const PROJECTS = [
+  { id:'SS-2026-1847', customerName:'Maria Rodriguez', address:'2847 Willow Glen Way, San Jose', systemSize:8.4, stage:'Installation', assignedCrew:'Alpha Crew', salesRep:'David Chen', daysInStage:2, estimatedCompletion:'2026-02-19', status:'on-track', panelCount:21, batteryIncluded:true },
+  { id:'SS-2026-1852', customerName:'James Patel', address:'1456 Homestead Rd, Sunnyvale', systemSize:11.2, stage:'Permitting', assignedCrew:null, salesRep:'Sarah Williams', daysInStage:18, estimatedCompletion:'2026-03-12', status:'at-risk', panelCount:28, batteryIncluded:true },
+  { id:'SS-2026-1863', customerName:'Jennifer Wong', address:'3921 Middlefield Rd, Palo Alto', systemSize:6.8, stage:'Design', assignedCrew:null, salesRep:'Michael Torres', daysInStage:9, estimatedCompletion:'2026-03-05', status:'on-track', panelCount:17, batteryIncluded:false },
+  { id:'SS-2026-1871', customerName:'Robert Kim', address:'5632 Mowry Ave, Fremont', systemSize:14.4, stage:'Final Inspection', assignedCrew:'Delta Crew', salesRep:'David Chen', daysInStage:5, estimatedCompletion:'2026-02-21', status:'on-track', panelCount:36, batteryIncluded:true },
+  { id:'SS-2026-1829', customerName:'Amanda Singh', address:'892 Castro St, Mountain View', systemSize:7.6, stage:'Pre-Install', assignedCrew:'Bravo Crew', salesRep:'Sarah Williams', daysInStage:4, estimatedCompletion:'2026-02-25', status:'on-track', panelCount:19, batteryIncluded:false },
+  { id:'SS-2026-1881', customerName:'David Nguyen', address:'1247 Lincoln Ave, San Jose', systemSize:9.6, stage:'Site Inspection', assignedCrew:null, salesRep:'Michael Torres', daysInStage:3, estimatedCompletion:'2026-03-18', status:'on-track', panelCount:24, batteryIncluded:true },
+  { id:'SS-2026-1843', customerName:'Lisa Thompson', address:'4521 El Camino Real, Palo Alto', systemSize:12.8, stage:'NEM/PTO', assignedCrew:null, salesRep:'David Chen', daysInStage:16, estimatedCompletion:'2026-03-08', status:'at-risk', panelCount:32, batteryIncluded:true },
+  { id:'SS-2026-1892', customerName:'Michael Chang', address:'2156 White Oaks Rd, Campbell', systemSize:5.2, stage:'Sales', assignedCrew:null, salesRep:'Sarah Williams', daysInStage:8, estimatedCompletion:'2026-04-15', status:'on-track', panelCount:13, batteryIncluded:false },
+  { id:'SS-2026-1854', customerName:'Patricia Martinez', address:'3789 Payne Ave, San Jose', systemSize:10.4, stage:'Installation', assignedCrew:'Charlie Crew', salesRep:'Michael Torres', daysInStage:3, estimatedCompletion:'2026-02-20', status:'on-track', panelCount:26, batteryIncluded:true },
+  { id:'SS-2026-1867', customerName:'Thomas Lee', address:'1934 Kifer Rd, Sunnyvale', systemSize:8.0, stage:'Permitting', assignedCrew:null, salesRep:'David Chen', daysInStage:23, estimatedCompletion:'2026-03-15', status:'delayed', panelCount:20, batteryIncluded:false },
+  { id:'SS-2026-1889', customerName:'Susan Gupta', address:'5421 Mission Blvd, Fremont', systemSize:7.2, stage:'Onboarding', assignedCrew:null, salesRep:'Sarah Williams', daysInStage:5, estimatedCompletion:'2026-03-28', status:'on-track', panelCount:18, batteryIncluded:false },
+  { id:'SS-2026-1876', customerName:'Christopher Davis', address:'2847 Park Ave, Santa Clara', systemSize:13.2, stage:'Design', assignedCrew:null, salesRep:'Michael Torres', daysInStage:11, estimatedCompletion:'2026-03-22', status:'on-track', panelCount:33, batteryIncluded:true },
+  { id:'SS-2026-1838', customerName:'Nancy Johnson', address:'789 Villa St, Mountain View', systemSize:6.4, stage:'Final Inspection', assignedCrew:null, salesRep:'David Chen', daysInStage:2, estimatedCompletion:'2026-02-18', status:'on-track', panelCount:16, batteryIncluded:false },
+  { id:'SS-2026-1894', customerName:'Daniel Brown', address:'4156 Stevens Creek Blvd, San Jose', systemSize:9.2, stage:'Sales', assignedCrew:null, salesRep:'Sarah Williams', daysInStage:6, estimatedCompletion:'2026-04-22', status:'on-track', panelCount:23, batteryIncluded:true },
+  { id:'SS-2026-1861', customerName:'Jessica Huang', address:'3241 Oak Rd, Walnut Creek', systemSize:11.6, stage:'Pre-Install', assignedCrew:'Echo Crew', salesRep:'Michael Torres', daysInStage:2, estimatedCompletion:'2026-02-28', status:'on-track', panelCount:29, batteryIncluded:true },
+  { id:'SS-2026-1845', customerName:"Kevin O'Brien", address:'1678 California Ave, Palo Alto', systemSize:8.8, stage:'NEM/PTO', assignedCrew:null, salesRep:'David Chen', daysInStage:14, estimatedCompletion:'2026-03-02', status:'on-track', panelCount:22, batteryIncluded:false },
+  { id:'SS-2026-1887', customerName:'Michelle Park', address:'5834 Camden Ave, San Jose', systemSize:4.8, stage:'Site Inspection', assignedCrew:null, salesRep:'Sarah Williams', daysInStage:2, estimatedCompletion:'2026-03-30', status:'on-track', panelCount:12, batteryIncluded:false },
+  { id:'SS-2026-1872', customerName:'Brian Wilson', address:'2934 Alameda de las Pulgas, Redwood City', systemSize:10.0, stage:'Permitting', assignedCrew:null, salesRep:'Michael Torres', daysInStage:19, estimatedCompletion:'2026-03-20', status:'at-risk', panelCount:25, batteryIncluded:true },
+  { id:'SS-2026-1856', customerName:'Karen Chen', address:'4521 Escuela Pkwy, Mountain View', systemSize:7.6, stage:'Installation', assignedCrew:'Alpha Crew', salesRep:'David Chen', daysInStage:1, estimatedCompletion:'2026-02-22', status:'on-track', panelCount:19, batteryIncluded:false },
+  { id:'SS-2026-1897', customerName:'Steven Ramirez', address:'1289 McLaughlin Ave, San Jose', systemSize:12.4, stage:'Onboarding', assignedCrew:null, salesRep:'Sarah Williams', daysInStage:7, estimatedCompletion:'2026-04-05', status:'on-track', panelCount:31, batteryIncluded:true },
+  { id:'SS-2026-1848', customerName:'Rebecca Taylor', address:'3678 Grant Rd, Palo Alto', systemSize:9.6, stage:'Final Inspection', assignedCrew:null, salesRep:'Michael Torres', daysInStage:8, estimatedCompletion:'2026-02-24', status:'delayed', panelCount:24, batteryIncluded:true },
+  { id:'SS-2026-1883', customerName:'Mark Anderson', address:'5123 Blossom Hill Rd, San Jose', systemSize:6.0, stage:'Design', assignedCrew:null, salesRep:'David Chen', daysInStage:13, estimatedCompletion:'2026-03-25', status:'on-track', panelCount:15, batteryIncluded:false },
+  { id:'SS-2026-1869', customerName:'Sandra Liu', address:'2456 Miramonte Ave, Mountain View', systemSize:11.2, stage:'Pre-Install', assignedCrew:'Foxtrot Crew', salesRep:'Sarah Williams', daysInStage:5, estimatedCompletion:'2026-03-01', status:'on-track', panelCount:28, batteryIncluded:true },
+  { id:'SS-2026-1891', customerName:'Paul Garcia', address:'789 Montague Expy, Milpitas', systemSize:8.4, stage:'Site Inspection', assignedCrew:null, salesRep:'Michael Torres', daysInStage:4, estimatedCompletion:'2026-04-08', status:'on-track', panelCount:21, batteryIncluded:false },
+  { id:'SS-2026-1850', customerName:'Emily Tran', address:'4892 Meridian Ave, San Jose', systemSize:13.6, stage:'NEM/PTO', assignedCrew:null, salesRep:'David Chen', daysInStage:21, estimatedCompletion:'2026-03-10', status:'delayed', panelCount:34, batteryIncluded:true }
+];
+
+const CREW_DATA = [
+  { name:'Alpha Crew', lead:'Carlos Martinez', members:5, currentJob:'SS-2026-1847', status:'on-job', location:'2847 Willow Glen Way, San Jose', completedThisMonth:8, efficiency:94 },
+  { name:'Bravo Crew', lead:'James Thompson', members:5, currentJob:'SS-2026-1829', status:'in-transit', location:'En route to Mountain View', completedThisMonth:7, efficiency:89 },
+  { name:'Charlie Crew', lead:'Miguel Santos', members:6, currentJob:'SS-2026-1854', status:'on-job', location:'3789 Payne Ave, San Jose', completedThisMonth:9, efficiency:96 },
+  { name:'Delta Crew', lead:'David Johnson', members:4, currentJob:'SS-2026-1871', status:'on-job', location:'5632 Mowry Ave, Fremont', completedThisMonth:6, efficiency:92 },
+  { name:'Echo Crew', lead:'Robert Lee', members:5, currentJob:null, status:'available', location:'Simply Solar HQ', completedThisMonth:8, efficiency:91 },
+  { name:'Foxtrot Crew', lead:'Antonio Rodriguez', members:5, currentJob:'SS-2026-1869', status:'on-job', location:'2456 Miramonte Ave, Mtn View', completedThisMonth:7, efficiency:88 },
+  { name:'Golf Crew', lead:'Kevin Patel', members:4, currentJob:null, status:'available', location:'Simply Solar HQ', completedThisMonth:5, efficiency:87 },
+  { name:'Hotel Crew', lead:'Marcus Williams', members:6, currentJob:null, status:'available', location:'Simply Solar HQ', completedThisMonth:9, efficiency:95 }
+];
+
+const INSPECTIONS = [
+  { projectId:'SS-2026-1881', address:'1247 Lincoln Ave, San Jose', type:'site-survey', date:'2026-02-17', time:'09:00', inspector:'Bay Area Building Inspector', status:'scheduled' },
+  { projectId:'SS-2026-1871', address:'5632 Mowry Ave, Fremont', type:'final-inspection', date:'2026-02-17', time:'14:00', inspector:'Fremont City Inspector', status:'scheduled' },
+  { projectId:'SS-2026-1838', address:'789 Villa St, Mountain View', type:'final-inspection', date:'2026-02-18', time:'10:30', inspector:'Mountain View Inspector', status:'scheduled' },
+  { projectId:'SS-2026-1887', address:'5834 Camden Ave, San Jose', type:'site-survey', date:'2026-02-18', time:'13:00', inspector:'San Jose Building Dept', status:'scheduled' },
+  { projectId:'SS-2026-1847', address:'2847 Willow Glen Way, San Jose', type:'rough-inspection', date:'2026-02-19', time:'11:00', inspector:'San Jose Building Dept', status:'pending-confirmation' },
+  { projectId:'SS-2026-1891', address:'789 Montague Expy, Milpitas', type:'site-survey', date:'2026-02-20', time:'09:30', inspector:'Milpitas Inspector', status:'scheduled' },
+  { projectId:'SS-2026-1848', address:'3678 Grant Rd, Palo Alto', type:'final-inspection', date:'2026-02-21', time:'15:00', inspector:'Palo Alto Building Dept', status:'pending-confirmation' },
+  { projectId:'SS-2026-1854', address:'3789 Payne Ave, San Jose', type:'rough-inspection', date:'2026-02-21', time:'10:00', inspector:'San Jose Building Dept', status:'scheduled' }
+];
+
+const KPI_DATA = { totalRevenue:4287000, avgInstallDays:68, customerSatisfaction:4.7, projectsCompleted:12, conversionRate:32, avgSystemSize:9.2, totalKwInstalled:847.6 };
+
+const WEEKLY_DATA = [
+  { day:'Mon', completedTasks:12, newLeads:8, inspections:3, installsStarted:2 },
+  { day:'Tue', completedTasks:15, newLeads:11, inspections:4, installsStarted:3 },
+  { day:'Wed', completedTasks:18, newLeads:9, inspections:2, installsStarted:2 },
+  { day:'Thu', completedTasks:14, newLeads:13, inspections:5, installsStarted:4 },
+  { day:'Fri', completedTasks:16, newLeads:7, inspections:3, installsStarted:1 },
+  { day:'Sat', completedTasks:8, newLeads:4, inspections:1, installsStarted:1 },
+  { day:'Sun', completedTasks:5, newLeads:3, inspections:0, installsStarted:0 }
+];
+
+// ============================================
+// RENDER FUNCTIONS
+// ============================================
+
+function formatCurrency(n) {
+    if (n >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return '$' + (n / 1000).toFixed(0) + 'K';
+    return '$' + n;
+}
+
+function formatDate(d) {
+    const date = new Date(d + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function getStageColor(stage) {
+    const entry = PIPELINE_DATA.find(p => p.name === stage);
+    return entry ? entry.color : '#666';
+}
+
+function renderDate() {
+    document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+}
+
+function renderKPIs() {
+    const activeProjects = PROJECTS.filter(p => p.stage !== 'Complete').length;
+    const kpis = [
+        { label: 'Active Projects', value: activeProjects, change: '+12%', positive: true, icon: '&#9632;', cls: 'orange' },
+        { label: 'Completed (Month)', value: KPI_DATA.projectsCompleted, change: '+8%', positive: true, icon: '&#10003;', cls: 'green' },
+        { label: 'Revenue (YTD)', value: formatCurrency(KPI_DATA.totalRevenue), change: '+15%', positive: true, icon: '$', cls: 'blue' },
+        { label: 'kW Installed', value: KPI_DATA.totalKwInstalled.toLocaleString(), change: '+22%', positive: true, icon: '&#9889;', cls: 'amber' }
+    ];
+    document.getElementById('stats-bar').innerHTML = kpis.map(k => `
+        <div class="stat-card ${k.cls}">
+            <div class="stat-header">
+                <span class="stat-label">${k.label}</span>
+                <div class="stat-icon">${k.icon}</div>
+            </div>
+            <div class="stat-value">${k.value}</div>
+            <div class="stat-change positive"><span>&#9650;</span> ${k.change} from last month</div>
+        </div>
+    `).join('');
+}
+
+function renderPipeline() {
+    const maxCount = Math.max(...PIPELINE_DATA.map(p => p.count));
+    document.getElementById('pipeline-container').innerHTML = PIPELINE_DATA.map(p => {
+        const pct = Math.max(8, (p.count / maxCount) * 100);
+        return `
+        <div class="pipeline-stage">
+            <span class="pipeline-stage-label">${p.name}</span>
+            <span class="pipeline-stage-count">${p.count}</span>
+            <div class="pipeline-bar-container">
+                <div class="pipeline-bar" style="--progress-width:${pct}%; background:linear-gradient(90deg, ${p.color}, ${p.color}dd);">
+                    ${p.avgDaysInStage > 0 ? '~' + p.avgDaysInStage + 'd avg' : ''}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderProjects() {
+    const active = PROJECTS.filter(p => p.stage !== 'Complete').sort((a, b) => {
+        const order = { 'delayed': 0, 'at-risk': 1, 'on-track': 2 };
+        return (order[a.status] || 2) - (order[b.status] || 2);
+    });
+    document.getElementById('project-tbody').innerHTML = active.slice(0, 15).map(p => {
+        const progress = STAGE_PROGRESS[p.stage] || 0;
+        const stageColor = getStageColor(p.stage);
+        const statusLabel = p.status.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const battery = p.batteryIncluded ? ' + &#128267;' : '';
+        return `
+        <tr>
+            <td><span class="project-id">${p.id}</span></td>
+            <td>
+                <div class="customer-name">${p.customerName}</div>
+                <div class="customer-address">${p.address}</div>
+            </td>
+            <td><span class="system-size">${p.systemSize} kW${battery}</span></td>
+            <td><span class="stage-tag" style="background:${stageColor}22; color:${stageColor}">${p.stage}</span></td>
+            <td><span class="badge ${p.status}"><span class="dot"></span>${statusLabel}</span></td>
+            <td>
+                <div class="progress-mini">
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${progress}%"></div></div>
+                    <span class="progress-pct">${progress}%</span>
+                </div>
+            </td>
+            <td style="font-size:0.8rem; color:var(--color-text-secondary); white-space:nowrap;">${formatDate(p.estimatedCompletion)}</td>
+        </tr>`;
+    }).join('');
+    document.getElementById('nav-project-count').textContent = active.length;
+}
+
+function renderCrews() {
+    document.getElementById('crew-grid').innerHTML = CREW_DATA.map(c => {
+        const initials = c.lead.split(' ').map(w => w[0]).join('');
+        const statusMap = { 'on-job': { label: 'On Job', dot: 'green', avatar: 'active' }, 'in-transit': { label: 'In Transit', dot: 'yellow', avatar: 'transit' }, 'available': { label: 'Available', dot: 'gray', avatar: 'available' } };
+        const s = statusMap[c.status];
+        const effColor = c.efficiency >= 93 ? 'var(--color-success)' : c.efficiency >= 88 ? 'var(--color-solar-amber)' : 'var(--color-text-secondary)';
+        return `
+        <div class="crew-card">
+            <div class="crew-card-header">
+                <div class="crew-card-avatar ${s.avatar}">${initials}</div>
+                <div>
+                    <div class="crew-card-name">${c.name}</div>
+                    <div class="crew-card-lead">${c.lead} &middot; ${c.members} members</div>
+                </div>
+            </div>
+            <div class="crew-status-row">
+                <div class="crew-status-indicator"><span class="dot ${s.dot}"></span> ${s.label}</div>
+                <span class="crew-efficiency" style="color:${effColor}">${c.efficiency}%</span>
+            </div>
+            <div class="crew-meta">
+                <span>${c.currentJob || 'Unassigned'}</span>
+                <span>${c.completedThisMonth} completed</span>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderInspections() {
+    const typeLabels = { 'site-survey': 'Site Survey', 'rough-inspection': 'Rough Inspection', 'final-inspection': 'Final Inspection' };
+    document.getElementById('inspections-list').innerHTML = INSPECTIONS.map(insp => {
+        const dateObj = new Date(insp.date + 'T00:00:00');
+        const dayLabel = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const statusLabel = insp.status === 'scheduled' ? 'Confirmed' : 'Pending';
+        return `
+        <div class="inspection-item ${insp.type}">
+            <div class="inspection-header">
+                <span class="inspection-type">${typeLabels[insp.type] || insp.type}</span>
+                <span class="inspection-date-badge">${dayLabel} ${insp.time}</span>
+            </div>
+            <div class="inspection-detail">${insp.projectId}</div>
+            <div class="inspection-address">${insp.address}</div>
+            <div class="inspection-footer">
+                <span>${insp.inspector}</span>
+                <span class="inspection-status ${insp.status}">${statusLabel}</span>
+            </div>
+        </div>`;
+    }).join('');
+    document.getElementById('nav-inspection-count').textContent = INSPECTIONS.length;
+}
+
+function renderWeeklyChart() {
+    const maxVal = Math.max(...WEEKLY_DATA.map(d => d.completedTasks));
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+    document.getElementById('activity-chart').innerHTML = WEEKLY_DATA.map((d, i) => {
+        const tH = (d.completedTasks / maxVal) * 100;
+        const lH = (d.newLeads / maxVal) * 100;
+        const iH = (d.inspections / maxVal) * 100;
+        const sH = (d.installsStarted / maxVal) * 100;
+        const isToday = today.startsWith(d.day);
+        return `
+        <div class="activity-day">
+            <div class="activity-bars">
+                <div class="activity-bar tasks" style="height:${tH}%" data-tooltip="${d.completedTasks} tasks" style="animation-delay:${i*0.08}s"></div>
+                <div class="activity-bar leads" style="height:${lH}%" data-tooltip="${d.newLeads} leads" style="animation-delay:${i*0.08+0.02}s"></div>
+                <div class="activity-bar inspections" style="height:${iH}%" data-tooltip="${d.inspections} inspections" style="animation-delay:${i*0.08+0.04}s"></div>
+                <div class="activity-bar installs" style="height:${sH}%" data-tooltip="${d.installsStarted} installs" style="animation-delay:${i*0.08+0.06}s"></div>
+            </div>
+            <span class="day-label ${isToday ? 'today' : ''}">${d.day}</span>
+        </div>`;
+    }).join('');
+}
+
+// ============================================
+// INIT
+// ============================================
+renderDate();
+renderKPIs();
+renderPipeline();
+renderProjects();
+renderCrews();
+renderInspections();
+renderWeeklyChart();
+
+// Live clock update
+setInterval(() => {
+    document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+}, 60000);
+</script>
+</body>
+</html>
