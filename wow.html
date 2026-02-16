@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cosmic Energy</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #000; cursor: none; }
+  canvas { display: block; }
+  #hud {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,0.3); font: 12px/1.4 monospace; text-align: center;
+    pointer-events: none; transition: opacity 0.5s;
+  }
+  #toast {
+    position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,0.8); font: 14px/1.4 monospace; text-align: center;
+    pointer-events: none; opacity: 0; transition: opacity 0.3s;
+  }
+  #credits {
+    position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,0.25); font: 11px/1.4 monospace; text-align: center;
+    pointer-events: none; opacity: 0; transition: opacity 2s ease-in;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">click to play tones &middot; [R] palette &middot; [S] speed</div>
+<div id="toast"></div>
+<div id="credits">Created by Dot via Claude Code &bull; Opus 4.6</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const hudEl = document.getElementById('hud');
+const toastEl = document.getElementById('toast');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// --- Toast notification ---
+let toastTimer = 0;
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.style.opacity = '0'; }, 1500);
+}
+
+// --- State ---
+const mouse = { x: W / 2, y: H / 2, px: W / 2, py: H / 2, vx: 0, vy: 0, active: false };
+let speedMode = 'slow'; // 'slow' or 'fast'
+let speedMultiplier = 1;
+let targetSpeedMultiplier = 1;
+let paletteHueShift = 0;
+let pulseIntensity = 0; // 0-1, driven by audio
+
+// --- Audio engine (Web Audio API) ---
+let audioCtx = null;
+const activeVoices = [];
+
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+// Pentatonic scale frequencies spanning several octaves
+const SCALE = [130.81,146.83,164.81,196.00,220.00,261.63,293.66,329.63,392.00,440.00,
+               523.25,587.33,659.25,783.99,880.00];
+
+function playTone(x, y) {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+
+  // Map x position to scale note
+  const noteIndex = Math.floor((x / W) * SCALE.length);
+  const freq = SCALE[Math.min(noteIndex, SCALE.length - 1)];
+
+  // Map y position to detune and volume
+  const detune = ((y / H) - 0.5) * 50; // subtle pitch bend
+  const volume = 0.08 + (1 - y / H) * 0.07; // louder near top
+
+  // Duration varies by speed mode
+  const dur = speedMode === 'slow' ? 3.0 : 1.5;
+
+  // Main tone oscillator
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  osc.detune.value = detune;
+
+  // Second oscillator for shimmer (slightly detuned)
+  const osc2 = audioCtx.createOscillator();
+  osc2.type = 'sine';
+  osc2.frequency.value = freq * 2.002; // octave + slight detune for chorus
+
+  // Third oscillator: sub tone
+  const osc3 = audioCtx.createOscillator();
+  osc3.type = 'triangle';
+  osc3.frequency.value = freq * 0.5;
+
+  // Gain envelopes
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(volume, now + 0.08);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+  const gain2 = audioCtx.createGain();
+  gain2.gain.setValueAtTime(0, now);
+  gain2.gain.linearRampToValueAtTime(volume * 0.25, now + 0.1);
+  gain2.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.7);
+
+  const gain3 = audioCtx.createGain();
+  gain3.gain.setValueAtTime(0, now);
+  gain3.gain.linearRampToValueAtTime(volume * 0.15, now + 0.15);
+  gain3.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+  // Reverb via convolver-like delay feedback
+  const delay = audioCtx.createDelay(1.0);
+  delay.delayTime.value = 0.3;
+  const feedback = audioCtx.createGain();
+  feedback.gain.value = 0.3;
+  const delayFilter = audioCtx.createBiquadFilter();
+  delayFilter.type = 'lowpass';
+  delayFilter.frequency.value = 1500;
+
+  // Routing
+  osc.connect(gain);
+  osc2.connect(gain2);
+  osc3.connect(gain3);
+
+  const merger = audioCtx.createGain();
+  merger.gain.value = 1;
+  gain.connect(merger);
+  gain2.connect(merger);
+  gain3.connect(merger);
+
+  // Dry path
+  merger.connect(audioCtx.destination);
+
+  // Wet path (delay feedback)
+  merger.connect(delay);
+  delay.connect(delayFilter);
+  delayFilter.connect(feedback);
+  feedback.connect(delay);
+  delayFilter.connect(audioCtx.destination);
+
+  osc.start(now);
+  osc2.start(now);
+  osc3.start(now);
+  osc.stop(now + dur + 0.5);
+  osc2.stop(now + dur + 0.5);
+  osc3.stop(now + dur + 0.5);
+
+  // Trigger pulse
+  pulseIntensity = 1.0;
+
+  // Track for analyser
+  const voice = { merger, startTime: now, duration: dur };
+  activeVoices.push(voice);
+  setTimeout(() => {
+    const idx = activeVoices.indexOf(voice);
+    if (idx !== -1) activeVoices.splice(idx, 1);
+    osc.disconnect();
+    osc2.disconnect();
+    osc3.disconnect();
+    gain.disconnect();
+    gain2.disconnect();
+    gain3.disconnect();
+    merger.disconnect();
+    delay.disconnect();
+    feedback.disconnect();
+    delayFilter.disconnect();
+  }, (dur + 1) * 1000);
+}
+
+// Continuous ambient drone (starts on first click)
+let droneStarted = false;
+function startDrone() {
+  if (droneStarted) return;
+  droneStarted = true;
+  ensureAudio();
+  const now = audioCtx.currentTime;
+
+  // Deep drone note
+  const droneOsc = audioCtx.createOscillator();
+  droneOsc.type = 'sine';
+  droneOsc.frequency.value = 55; // A1
+
+  const droneOsc2 = audioCtx.createOscillator();
+  droneOsc2.type = 'sine';
+  droneOsc2.frequency.value = 82.41; // E2 (perfect fifth)
+
+  const lfo = audioCtx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.08;
+
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 3;
+
+  lfo.connect(lfoGain);
+  lfoGain.connect(droneOsc.frequency);
+
+  const droneGain = audioCtx.createGain();
+  droneGain.gain.setValueAtTime(0, now);
+  droneGain.gain.linearRampToValueAtTime(0.025, now + 4);
+
+  const droneGain2 = audioCtx.createGain();
+  droneGain2.gain.setValueAtTime(0, now);
+  droneGain2.gain.linearRampToValueAtTime(0.015, now + 5);
+
+  const droneFilter = audioCtx.createBiquadFilter();
+  droneFilter.type = 'lowpass';
+  droneFilter.frequency.value = 200;
+
+  droneOsc.connect(droneGain);
+  droneOsc2.connect(droneGain2);
+  droneGain.connect(droneFilter);
+  droneGain2.connect(droneFilter);
+  droneFilter.connect(audioCtx.destination);
+
+  droneOsc.start(now);
+  droneOsc2.start(now);
+  lfo.start(now);
+
+  // Fade HUD after first click
+  setTimeout(() => { hudEl.style.opacity = '0'; }, 3000);
+}
+
+// --- Input handlers ---
+window.addEventListener('mousemove', e => {
+  mouse.px = mouse.x; mouse.py = mouse.y;
+  mouse.x = e.clientX; mouse.y = e.clientY;
+  mouse.vx = mouse.x - mouse.px; mouse.vy = mouse.y - mouse.py;
+  mouse.active = true;
+});
+window.addEventListener('mouseleave', () => { mouse.active = false; });
+window.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  mouse.px = mouse.x; mouse.py = mouse.y;
+  mouse.x = t.clientX; mouse.y = t.clientY;
+  mouse.vx = mouse.x - mouse.px; mouse.vy = mouse.y - mouse.py;
+  mouse.active = true;
+}, { passive: false });
+
+window.addEventListener('click', e => {
+  startDrone();
+  playTone(e.clientX, e.clientY);
+});
+window.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  mouse.x = t.clientX; mouse.y = t.clientY;
+  mouse.active = true;
+  startDrone();
+  playTone(t.clientX, t.clientY);
+});
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'r' || e.key === 'R') {
+    paletteHueShift = (paletteHueShift + 60 + Math.random() * 120) % 360;
+    showToast('palette shifted');
+  }
+  if (e.key === 's' || e.key === 'S') {
+    if (speedMode === 'slow') {
+      speedMode = 'fast';
+      targetSpeedMultiplier = 2.8;
+      showToast('energetic mode');
+    } else {
+      speedMode = 'slow';
+      targetSpeedMultiplier = 1;
+      showToast('meditative mode');
+    }
+  }
+});
+
+// --- Particles ---
+const PARTICLE_COUNT = 1200;
+const LAYERS = 4;
+
+class Particle {
+  constructor() {
+    this.reset(true);
+  }
+
+  reset(initial) {
+    this.layer = Math.floor(Math.random() * LAYERS);
+    const depthScale = 0.3 + (this.layer / LAYERS) * 0.7;
+    this.baseSize = (0.5 + Math.random() * 2.5) * depthScale;
+    this.size = this.baseSize;
+    this.baseSpeed = (0.2 + Math.random() * 0.8) * depthScale;
+    this.speed = this.baseSpeed;
+
+    if (initial) {
+      this.x = Math.random() * W;
+      this.y = Math.random() * H;
+    } else {
+      const side = Math.floor(Math.random() * 4);
+      if (side === 0) { this.x = -10; this.y = Math.random() * H; }
+      else if (side === 1) { this.x = W + 10; this.y = Math.random() * H; }
+      else if (side === 2) { this.x = Math.random() * W; this.y = -10; }
+      else { this.x = Math.random() * W; this.y = H + 10; }
+    }
+
+    this.baseAngle = Math.random() * Math.PI * 2;
+    this.angleOffset = Math.random() * Math.PI * 2;
+    this.life = 0;
+    this.maxLife = 400 + Math.random() * 600;
+    this.hueBase = Math.random() * 360;
+    this.opacity = 0;
+  }
+
+  update(time) {
+    this.life++;
+    if (this.life > this.maxLife || this.x < -50 || this.x > W + 50 || this.y < -50 || this.y > H + 50) {
+      this.reset(false);
+    }
+
+    // Speed interpolation
+    this.speed = this.baseSpeed * speedMultiplier;
+
+    // Pulse: expand size when audio triggers
+    this.size = this.baseSize * (1 + pulseIntensity * 0.8 * (this.layer / LAYERS));
+
+    // Fade in/out
+    const lifeFrac = this.life / this.maxLife;
+    if (lifeFrac < 0.1) this.opacity = lifeFrac / 0.1;
+    else if (lifeFrac > 0.8) this.opacity = (1 - lifeFrac) / 0.2;
+    else this.opacity = 1;
+
+    // Organic flow
+    const t = time * 0.001;
+    const flowAngle = this.baseAngle
+      + Math.sin(t * 0.7 * speedMultiplier + this.angleOffset) * 0.8
+      + Math.sin(this.x * 0.003 + t * 0.3 * speedMultiplier) * 0.5
+      + Math.cos(this.y * 0.004 + t * 0.2 * speedMultiplier) * 0.4;
+
+    let vx = Math.cos(flowAngle) * this.speed;
+    let vy = Math.sin(flowAngle) * this.speed;
+
+    // Upward drift
+    vy -= 0.15 * this.speed;
+
+    // Pulse burst: radial push from center on pulse
+    if (pulseIntensity > 0.1) {
+      const cx = W / 2, cy = H / 2;
+      const dx = this.x - cx;
+      const dy = this.y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const pushStrength = pulseIntensity * 0.5 * (this.layer / LAYERS);
+      vx += (dx / dist) * pushStrength;
+      vy += (dy / dist) * pushStrength;
+    }
+
+    // Mouse attraction/swirl
+    if (mouse.active) {
+      const dx = mouse.x - this.x;
+      const dy = mouse.y - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const influenceRadius = 250;
+
+      if (dist < influenceRadius && dist > 1) {
+        const force = (1 - dist / influenceRadius);
+        const angle = Math.atan2(dy, dx);
+        const swirlAngle = angle + Math.PI * 0.45;
+        vx += Math.cos(swirlAngle) * force * 2.5;
+        vy += Math.sin(swirlAngle) * force * 2.5;
+        vx += mouse.vx * force * 0.08;
+        vy += mouse.vy * force * 0.08;
+      }
+    }
+
+    this.x += vx;
+    this.y += vy;
+  }
+
+  draw(ctx, time) {
+    const t = time * 0.001;
+    const hue = (this.hueBase + paletteHueShift + t * 15 + this.x * 0.05 + this.y * 0.03) % 360;
+    const sat = 70 + Math.sin(t + this.angleOffset) * 20;
+    let light = 50 + this.layer * 8 + Math.sin(t * 2 + this.hueBase) * 10;
+    // Brighten on pulse
+    light += pulseIntensity * 15;
+    const alpha = this.opacity * (0.3 + (this.layer / LAYERS) * 0.5);
+
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, ${sat}%, ${Math.min(light, 95)}%, ${alpha})`;
+    ctx.fill();
+
+    // Glow for front-layer particles
+    if (this.layer >= LAYERS - 2 && this.size > 1.5) {
+      const glowSize = this.size * (3 + pulseIntensity * 2);
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, glowSize, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${hue}, ${sat}%, ${Math.min(light + 15, 97)}%, ${alpha * (0.12 + pulseIntensity * 0.08)})`;
+      ctx.fill();
+    }
+  }
+}
+
+// --- Nebula clouds ---
+class NebulaCloud {
+  constructor() {
+    this.x = Math.random() * W;
+    this.y = Math.random() * H;
+    this.radius = 100 + Math.random() * 300;
+    this.hue = Math.random() * 360;
+  }
+
+  draw(ctx, time) {
+    const t = time * 0.001;
+    const hue = (this.hue + paletteHueShift + t * 5) % 360;
+    const x = this.x + Math.sin(t * 0.3 + this.hue) * 30;
+    const y = this.y + Math.cos(t * 0.2 + this.hue) * 20;
+    const r = this.radius + Math.sin(t * 0.5 + this.hue * 0.1) * 40 + pulseIntensity * 30;
+
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const baseAlpha = 0.04 + pulseIntensity * 0.02;
+    grad.addColorStop(0, `hsla(${hue}, 60%, 25%, ${baseAlpha})`);
+    grad.addColorStop(0.5, `hsla(${(hue + 40) % 360}, 50%, 15%, ${baseAlpha * 0.5})`);
+    grad.addColorStop(1, `hsla(${hue}, 40%, 10%, 0)`);
+
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+}
+
+// --- Cursor glow ---
+function drawCursorGlow(ctx, time) {
+  if (!mouse.active) return;
+  const t = time * 0.001;
+  const hue = (paletteHueShift + t * 40) % 360;
+  const glowRadius = 120 + pulseIntensity * 60;
+
+  const grad = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, glowRadius);
+  grad.addColorStop(0, `hsla(${hue}, 80%, 70%, ${0.15 + pulseIntensity * 0.1})`);
+  grad.addColorStop(0.3, `hsla(${(hue + 30) % 360}, 70%, 50%, 0.06)`);
+  grad.addColorStop(1, `hsla(${hue}, 60%, 30%, 0)`);
+
+  ctx.beginPath();
+  ctx.arc(mouse.x, mouse.y, glowRadius, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  const coreSize = 8 + pulseIntensity * 4;
+  const grad2 = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, coreSize);
+  grad2.addColorStop(0, `hsla(${hue}, 60%, 95%, ${0.6 + pulseIntensity * 0.3})`);
+  grad2.addColorStop(1, `hsla(${hue}, 80%, 70%, 0)`);
+  ctx.beginPath();
+  ctx.arc(mouse.x, mouse.y, coreSize, 0, Math.PI * 2);
+  ctx.fillStyle = grad2;
+  ctx.fill();
+}
+
+// --- Pulse ring (visual shockwave on click) ---
+const pulseRings = [];
+function spawnPulseRing(x, y) {
+  pulseRings.push({ x, y, radius: 0, maxRadius: 250 + Math.random() * 100, life: 0, maxLife: 60 });
+}
+window.addEventListener('click', e => { spawnPulseRing(e.clientX, e.clientY); });
+
+function drawPulseRings(ctx, time) {
+  const t = time * 0.001;
+  for (let i = pulseRings.length - 1; i >= 0; i--) {
+    const ring = pulseRings[i];
+    ring.life++;
+    if (ring.life > ring.maxLife) { pulseRings.splice(i, 1); continue; }
+
+    const progress = ring.life / ring.maxLife;
+    ring.radius = ring.maxRadius * (1 - Math.pow(1 - progress, 3));
+    const alpha = (1 - progress) * 0.25;
+    const hue = (paletteHueShift + t * 30) % 360;
+
+    ctx.beginPath();
+    ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
+    ctx.strokeStyle = `hsla(${hue}, 70%, 65%, ${alpha})`;
+    ctx.lineWidth = 2 * (1 - progress);
+    ctx.stroke();
+
+    // Inner glow ring
+    ctx.beginPath();
+    ctx.arc(ring.x, ring.y, ring.radius * 0.7, 0, Math.PI * 2);
+    ctx.strokeStyle = `hsla(${(hue + 60) % 360}, 60%, 55%, ${alpha * 0.4})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
+// --- Initialize ---
+const particles = [];
+for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
+particles.sort((a, b) => a.layer - b.layer);
+
+const clouds = [];
+for (let i = 0; i < 8; i++) clouds.push(new NebulaCloud());
+
+const stars = [];
+for (let i = 0; i < 200; i++) {
+  stars.push({
+    x: Math.random() * W, y: Math.random() * H,
+    size: Math.random() * 1.2,
+    twinkleSpeed: 1 + Math.random() * 3,
+    twinkleOffset: Math.random() * Math.PI * 2,
+    depth: 0.3 + Math.random() * 0.7 // parallax depth: 0.3 = far, 1.0 = near
+  });
+}
+
+// Smoothed parallax offset (tracks mouse deviation from center)
+const parallax = { x: 0, y: 0 };
+
+function drawStars(ctx, time) {
+  // Smoothly interpolate parallax toward target
+  const targetPx = -(mouse.x - W / 2) * 0.03;
+  const targetPy = -(mouse.y - H / 2) * 0.03;
+  parallax.x += (targetPx - parallax.x) * 0.05;
+  parallax.y += (targetPy - parallax.y) * 0.05;
+
+  const t = time * 0.001;
+  for (const s of stars) {
+    const alpha = 0.3 + Math.sin(t * s.twinkleSpeed + s.twinkleOffset) * 0.3;
+    const px = s.x + parallax.x * s.depth;
+    const py = s.y + parallax.y * s.depth;
+    ctx.beginPath();
+    ctx.arc(px, py, s.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    ctx.fill();
+  }
+}
+
+// --- Main loop ---
+function animate(time) {
+  // Smooth speed transitions
+  speedMultiplier += (targetSpeedMultiplier - speedMultiplier) * 0.03;
+
+  // Decay pulse
+  pulseIntensity *= 0.96;
+  if (pulseIntensity < 0.005) pulseIntensity = 0;
+
+  // Trail effect — faster fade in energetic mode
+  const trailAlpha = speedMode === 'fast' ? 0.1 : 0.06;
+  ctx.fillStyle = `rgba(0, 0, 0, ${trailAlpha})`;
+  ctx.fillRect(0, 0, W, H);
+
+  // Background nebula clouds
+  if (Math.floor(time / 16) % 4 === 0) {
+    for (const cloud of clouds) cloud.draw(ctx, time);
+  }
+
+  drawStars(ctx, time);
+
+  // Particles
+  for (const p of particles) {
+    p.update(time);
+    p.draw(ctx, time);
+  }
+
+  // Connection lines (front layer)
+  ctx.lineWidth = 0.3;
+  const frontParticles = particles.filter(p => p.layer >= LAYERS - 1);
+  for (let i = 0; i < frontParticles.length; i++) {
+    for (let j = i + 1; j < frontParticles.length; j++) {
+      const a = frontParticles[i];
+      const b = frontParticles[j];
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dist = dx * dx + dy * dy;
+      if (dist < 4000) {
+        const alpha = (1 - dist / 4000) * 0.15 * Math.min(a.opacity, b.opacity);
+        const t = time * 0.001;
+        const hue = (paletteHueShift + t * 20 + (a.x + b.x) * 0.03) % 360;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = `hsla(${hue}, 70%, 60%, ${alpha})`;
+        ctx.stroke();
+      }
+    }
+  }
+
+  drawPulseRings(ctx, time);
+  drawCursorGlow(ctx, time);
+
+  // Decay mouse velocity
+  mouse.vx *= 0.9;
+  mouse.vy *= 0.9;
+
+  requestAnimationFrame(animate);
+}
+
+// Initial fill
+ctx.fillStyle = '#000';
+ctx.fillRect(0, 0, W, H);
+
+requestAnimationFrame(animate);
+
+// Fade in credits after 5 seconds
+setTimeout(() => { document.getElementById('credits').style.opacity = '1'; }, 5000);
+</script>
+</body>
+</html>
